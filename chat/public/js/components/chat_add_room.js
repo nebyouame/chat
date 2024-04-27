@@ -5,13 +5,21 @@ export default class ChatAddRoom {
     this.user = opts.user;
     this.users_list = [...frappe.user.get_emails(), 'Administrator'];
     this.user_email = opts.user_email;
-    this.users_list = this.users_list.filter(function (user) {
-      return user != opts.user_email;
-    });
+    this.users_list = this.users_list.filter(user => user !== opts.user_email);
     this.setup();
   }
 
   async setup() {
+    if (frappe.user.has_role("System Manager")) {
+      
+      const allUsers = await frappe.db.get_list('User', { fields: ['email', 'full_name'] });
+      this.users_list = allUsers.map(user => ({ value: user.email, label: user.email + '<br>' + user.full_name }));
+    } else {
+      
+      const nonAdminUsers = await frappe.db.get_list('User', { filters: [['name', 'not in', ['Administrator', frappe.session.user]]], fields: ['email', 'full_name'] });
+      this.users_list = nonAdminUsers.map(user => ({ value: user.email, label: user.email + '<br>' + user.full_name }));
+    }
+    
     this.add_room_dialog = new frappe.ui.Dialog({
       title: __('New Chat Room'),
       fields: [
@@ -56,7 +64,7 @@ export default class ChatAddRoom {
       action: {
         primary: {
           label: __('Create'),
-          onsubmit: (values) => {
+          onsubmit: values => {
             let users = this.add_room_dialog.fields_dict.users.get_values();
             let room_name = values.room_name;
             if (values.type === 'Direct') {
@@ -80,7 +88,7 @@ export default class ChatAddRoom {
       await create_private_room(room_name, users, type);
       this.add_room_dialog.clear();
     } catch (error) {
-      //pass
+      // Handle error if necessary
     }
   }
 }
